@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
 import 'package:quanto_sono_buono/models/goods_bag.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'best_combo.dart';
 
@@ -38,6 +41,13 @@ class _MyHomePageState extends State<MyHomePage> {
   GoodsBag fourFive = GoodsBag(value: 4.5, quantity: 0);
   double amount = 0;
   final TextEditingController _controller = TextEditingController();
+  final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter = DecimalNumberRegexInputFormatter();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
 
   void _increment7Goods() {
     setState(() {
@@ -45,6 +55,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ++seven.quantity;
       }
     });
+    _saveData();
   }
 
   void _decrement7Goods() {
@@ -53,6 +64,7 @@ class _MyHomePageState extends State<MyHomePage> {
         --seven.quantity;
       }
     });
+    _saveData();
   }
 
   void _increment4_5Goods() {
@@ -61,6 +73,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ++fourFive.quantity;
       }
     });
+    _saveData();
   }
 
   void _decrement4_5Goods() {
@@ -69,6 +82,7 @@ class _MyHomePageState extends State<MyHomePage> {
         --fourFive.quantity;
       }
     });
+    _saveData();
   }
 
   @override
@@ -152,8 +166,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   flex: 3,
                   child: Column(children: [
                     TextField(
+                      inputFormatters: [_decimalNumberRegexInputFormatter],
                       controller: _controller,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                         labelText: 'Tocca per importo spesa',
                       ),
@@ -191,7 +206,22 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     calculateRec(0, 0, myGoodsBag.map((e) => GoodsBag(value: e.value, quantity: 0)).toList());
-    Navigator.push(context, MaterialPageRoute(builder: (context) => BestCombo(bestCombo: bestCombo))).then((value) => setState((){}));
+    Navigator.push(context, MaterialPageRoute(builder: (context) => BestCombo(bestCombo: bestCombo, remainingAmount: bestDiff))).then((value) => setState((){}));
 
+  }
+
+  void _loadData() async {
+    var sp = await SharedPreferences.getInstance();
+    setState(() {
+      seven.quantity = sp.getInt('qty_seven') ?? 0;
+      fourFive.quantity = sp.getInt('qty_fourFive') ?? 0;
+    });
+  }
+
+  void _saveData() async {
+    var sp = await SharedPreferences.getInstance();
+    sp.setInt('qty_seven', seven.quantity);
+    sp.setInt('qty_fourFive', fourFive.quantity);
+    _loadData();
   }
 }

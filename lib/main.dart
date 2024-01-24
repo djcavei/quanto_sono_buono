@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
 import 'package:quanto_sono_buono/models/goods_bag.dart';
+import 'package:quanto_sono_buono/widgets/goods_meal_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'best_combo.dart';
-
 void main() {
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const MyApp());
 }
 
@@ -19,7 +20,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Quanto sono buono',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.amber),
+        textTheme: GoogleFonts.titilliumWebTextTheme(),
         useMaterial3: true,
       ),
       home: const MyHomePage(title: 'Quanto sono buono Home Page'),
@@ -37,11 +39,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  final List<GestureDetector> _goodsMealWidgets = [];
+
   GoodsBag seven = GoodsBag(value: 7, quantity: 0);
   GoodsBag fourFive = GoodsBag(value: 4.5, quantity: 0);
   double amount = 0;
-  final TextEditingController _controller = TextEditingController();
-  final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter = DecimalNumberRegexInputFormatter();
+  final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter =
+      DecimalNumberRegexInputFormatter();
 
   @override
   void initState() {
@@ -89,125 +93,28 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
         floatingActionButton: FloatingActionButton(
-          onPressed: _calculate,
+          onPressed: () => setState(() {
+            throw UnimplementedError();
+          }),
           tooltip: "Calcola",
           child: const Icon(Icons.calculate),
         ),
         appBar: AppBar(
+          leading: IconButton(
+            tooltip: "Aggiungi nuovo buono",
+            icon: const Icon(Icons.add),
+            onPressed: () => setState(() {
+              _addNewGoodsMealWidget();
+            }),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+          elevation: 5,
+          shadowColor: Theme.of(context).colorScheme.onPrimary,
+          backgroundColor: Colors.orange,
           centerTitle: true,
-          title: const Text("Quanto buono sono"),
+          title: const Text("Quanto sono buono"),
         ),
-        body: Column(children: [
-          Row(
-            children: <Widget>[
-              const Expanded(
-                  flex: 1,
-                  child: Column(
-                    children: [
-                      Text("Quantità buoni da 7€",
-                          style: TextStyle(color: Colors.black))
-                    ],
-                  )),
-              Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          TextButton(
-                              onPressed: _decrement7Goods,
-                              child:
-                                  const Icon(Icons.remove, color: Colors.grey)),
-                          Text('${seven.quantity}'),
-                          TextButton(
-                              onPressed: _increment7Goods,
-                              child: const Icon(Icons.add,
-                                  color: Colors.blueAccent)),
-                        ],
-                      )
-                    ],
-                  ))
-            ],
-          ),
-          Row(
-            children: <Widget>[
-              const Expanded(
-                  flex: 1,
-                  child: Column(
-                    children: [
-                      Text("Quantità buoni da 4,5€",
-                          style: TextStyle(color: Colors.black))
-                    ],
-                  )),
-              Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          TextButton(
-                              onPressed: _decrement4_5Goods,
-                              child:
-                                  const Icon(Icons.remove, color: Colors.grey)),
-                          Text('${fourFive.quantity}'),
-                          TextButton(
-                              onPressed: _increment4_5Goods,
-                              child: const Icon(Icons.add,
-                                  color: Colors.blueAccent)),
-                        ],
-                      )
-                    ],
-                  ))
-            ],
-          ),
-          Row(
-            children: <Widget>[
-              Expanded(
-                  flex: 3,
-                  child: Column(children: [
-                    TextField(
-                      inputFormatters: [_decimalNumberRegexInputFormatter],
-                      controller: _controller,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Tocca per importo spesa',
-                      ),
-                    )
-                  ]))
-            ],
-          ),
-        ]));
-  }
-
-  void _calculate() {
-    double amount;
-    try {
-      amount = double.parse(_controller.text);
-    } on Exception catch (_) {
-      return;
-    }
-    double bestDiff = amount;
-    List<GoodsBag> bestCombo = [];
-    List<GoodsBag> myGoodsBag = [seven, fourFive];
-
-    void calculateRec(int idx, double expense, List<GoodsBag> currentBag) {
-      if(expense <= amount && amount - expense < bestDiff) {
-        bestDiff = amount - expense;
-        bestCombo = currentBag.map((e) => e.clone()).toList();
-      }
-      if(idx < myGoodsBag.length && expense <= amount) {
-        if(myGoodsBag[idx].quantity > currentBag[idx].quantity) {
-          ++currentBag[idx].quantity;
-          calculateRec(idx, expense + myGoodsBag[idx].value, currentBag);
-          --currentBag[idx].quantity;
-        }
-        calculateRec(idx + 1, expense, currentBag);
-      }
-    }
-
-    calculateRec(0, 0, myGoodsBag.map((e) => GoodsBag(value: e.value, quantity: 0)).toList());
-    Navigator.push(context, MaterialPageRoute(builder: (context) => BestCombo(bestCombo: bestCombo, remainingAmount: bestDiff))).then((value) => setState((){}));
-
+        body: Column(children: _goodsMealWidgets));
   }
 
   void _loadData() async {
@@ -224,4 +131,42 @@ class _MyHomePageState extends State<MyHomePage> {
     sp.setInt('qty_fourFive', fourFive.quantity);
     _loadData();
   }
+
+  void _addNewGoodsMealWidget() {
+    _goodsMealWidgets.add(GestureDetector(
+        onLongPress: _removeGoodsMealDialog, child: GoodsMealWidget(index: _goodsMealWidgets.length)));
+  }
+
+  void _removeGoodsMealDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: const Text('Elimina buono?'),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Torna Indietro'),
+            ),
+            ElevatedButton(
+              style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(Colors.red)),
+              onPressed: () {
+                setState(() {
+                  _goodsMealWidgets.removeWhere((gestureDetector) =>  (gestureDetector.child! as GoodsMealWidget).index == )
+                  _goodsMealWidgets.remo
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text('Elimina'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 }

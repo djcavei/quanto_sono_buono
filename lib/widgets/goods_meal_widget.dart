@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
+import 'package:quanto_sono_buono/main.dart';
+import 'package:quanto_sono_buono/models/goods_bag.dart';
 
 class GoodsMealWidget extends StatefulWidget {
-  final int index;
-  const GoodsMealWidget({super.key, required this.index});
+  final String uniqueKey;
+  final GoodsBagCallback callback;
+  const GoodsMealWidget({super.key, required this.uniqueKey, required this.callback});
 
   @override
-  State<StatefulWidget> createState() => GoodsMealWidgetState();
+  State<StatefulWidget> createState() => _GoodsMealWidgetState();
 }
 
-class GoodsMealWidgetState extends State<GoodsMealWidget> {
+class _GoodsMealWidgetState extends State<GoodsMealWidget> {
   String _quantityDropdownButton = '0';
   String _value = '0';
+  final GoodsBag _bag = GoodsBag(value: 0, quantity: 0);
   final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter =
       DecimalNumberRegexInputFormatter();
   final TextEditingController _controller = TextEditingController();
@@ -53,15 +57,13 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                     children: [
                       const Text("Quantità", style: TextStyle(fontSize: 18)),
                       Container(
+                        margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+                        height: 30,
                           decoration: BoxDecoration(
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.withOpacity(0.5),
-                                  spreadRadius: 2,
-                                  blurRadius: 1,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
+                              border: Border.all(
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  width: 1.0
+                              ),
                               color: Theme.of(context).colorScheme.background,
                               borderRadius: BorderRadius.circular(5)),
                           child: DropdownButton<String>(
@@ -70,6 +72,8 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                               items: _zeroToTwentyList,
                               onChanged: (s) => setState(() {
                                     _quantityDropdownButton = s!;
+                                    _bag.quantity = int.parse(s);
+                                    widget.callback(_bag);
                                   })))
                     ],
                   )),
@@ -83,7 +87,7 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                       ElevatedButton(
                           onPressed: () => _showPopup(context),
                           child: Text(
-                            "$_value €",
+                            "$_value€",
                             style: const TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
@@ -120,6 +124,8 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
               onPressed: () {
                 setState(() {
                   _value = _controller.text;
+                  _bag.value = double.parse(_value);
+                  widget.callback(_bag);
                 });
                 Navigator.of(context).pop();
               },
@@ -131,41 +137,4 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
     );
   }
 
-/*void _calculate() {
-    double amount;
-    try {
-      amount = double.parse(_controller.text);
-    } on Exception catch (_) {
-      return;
-    }
-    double bestDiff = amount;
-    List<GoodsBag> bestCombo = [];
-    List<GoodsBag> myGoodsBag = [seven, fourFive];
-
-    void calculateRec(int idx, double expense, List<GoodsBag> currentBag) {
-      if(expense <= amount && amount - expense < bestDiff) {
-        bestDiff = amount - expense;
-        bestCombo = currentBag.map((e) => e.clone()).toList();
-      }
-      if(idx < myGoodsBag.length && expense <= amount) {
-        if(myGoodsBag[idx].quantity > currentBag[idx].quantity) {
-          ++currentBag[idx].quantity;
-          calculateRec(idx, expense + myGoodsBag[idx].value, currentBag);
-          --currentBag[idx].quantity;
-        }
-        calculateRec(idx + 1, expense, currentBag);
-      }
-    }
-
-    calculateRec(0, 0, myGoodsBag.map((e) => GoodsBag(value: e.value, quantity: 0)).toList());
-    Navigator.push(context, MaterialPageRoute(builder: (context) => BestCombo(bestCombo: bestCombo, remainingAmount: bestDiff))).then((value) => setState((){}));
-
-  }*/
-
-/*TextField(
-  controller: _controller,
-  inputFormatters: [_decimalNumberRegexInputFormatter],
-  keyboardType: const TextInputType.numberWithOptions(
-  decimal: true),
-  )*/
 }

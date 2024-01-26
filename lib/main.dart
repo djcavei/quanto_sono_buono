@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path/path.dart' as p;
 import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
 import 'package:quanto_sono_buono/models/goods_bag.dart';
+import 'package:quanto_sono_buono/persistence/goods_meal_entity.dart';
 import 'package:quanto_sono_buono/widgets/goods_meal_widget.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 
 import 'best_combo.dart';
 
@@ -41,8 +43,10 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  final maxNumGoodsMeal = 4;
   final List<GoodsBag> _goodsBags = [];
   final List<GestureDetector> _goodsMealWidgets = [];
+  List<GlobalKey<GoodsMealWidgetState>> _keys = [];
   double _amount = 0;
   final TextEditingController _controller = TextEditingController();
   final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter =
@@ -51,6 +55,8 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    final WidgetsBinding widgetsFlutterBinding =
+        WidgetsFlutterBinding.ensureInitialized();
   }
 
   @override
@@ -119,19 +125,17 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _addNewGoodsMealWidget() {
-    if (_goodsMealWidgets.length < 5) {
-      String uniqueIdentifier = UniqueKey().toString();
+    if (_goodsMealWidgets.length < maxNumGoodsMeal) {
+      GlobalKey<GoodsMealWidgetState> globalKey = GlobalKey();
+      _keys.add(globalKey);
       _goodsMealWidgets.add(GestureDetector(
           key: UniqueKey(),
-          onLongPress: () => _removeGoodsMealDialog(uniqueIdentifier),
-          child: GoodsMealWidget(
-              callback: _addGoodsMealBag,
-              key: UniqueKey(),
-              uniqueKey: uniqueIdentifier)));
+          onLongPress: () => _removeGoodsMealDialog(globalKey),
+          child: GoodsMealWidget(callback: _saveData, key: globalKey)));
     }
   }
 
-  void _removeGoodsMealDialog(String uniqueKey) {
+  void _removeGoodsMealDialog(Key uniqueKey) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -151,8 +155,9 @@ class _MyHomePageState extends State<MyHomePage> {
               onPressed: () {
                 setState(() {
                   _goodsMealWidgets.removeWhere((element) =>
-                      uniqueKey ==
-                      ((element.child!) as GoodsMealWidget).uniqueKey);
+                      uniqueKey == ((element.child!) as GoodsMealWidget).key);
+                  _keys.removeWhere((key) => uniqueKey == key);
+                  deleteGoodsMealFromDb(uniqueKey);
                 });
                 Navigator.of(context).pop();
               },
@@ -211,15 +216,14 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void _addGoodsMealBag(GoodsBag bag) {
-    _goodsBags.remove(bag);
-    _goodsBags.add(bag);
-  }
-
   void _calculate() {
     double bestDiff = _amount;
     List<GoodsBag> bestCombo = [];
-    List<GoodsBag> myGoodsBag = _goodsBags;
+    List<GoodsBag> myGoodsBag = _keys
+        .map((e) => GoodsBag(
+            value: double.parse(e.currentState!.val),
+            quantity: int.parse(e.currentState!.qty)))
+        .toList();
 
     void calculateRec(int idx, double expense, List<GoodsBag> currentBag) {
       if (expense <= _amount && _amount - expense < bestDiff) {
@@ -274,6 +278,77 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
   }
+
+  void _saveData(Key? key, String qty, String value) async {
+    final database = openDb();
+
+    Future<void> insertGoodsMeal(GoodsMealEntity goodsMealEntity) async {
+      final db = await database;
+      await db.insert(
+        'goods_meal',
+        goodsMealEntity.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    insertGoodsMeal(GoodsMealEntity(
+        qty: int.parse(qty), key: key!, value: double.parse(value)));
+  }
+
+  void deleteGoodsMealFromDb(Key uniqueKey) async {
+    final database = openDb();
+
+    Future<void> deleteGoodsMeal(Key uniqueKey) async {
+      final db = await database;
+      await db.delete(
+        'goods_meal',
+        where: 'key = ?',
+        whereArgs: uniqueKey
+      );
+    }
+
+    deleteGoodsMeal(uniqueKey);
+
+  }
+  
+  void retrieveGoodsMeals() {
+    final database = openDb();
+
+    Future<List<GoodsMealEntity>> goodsMeals() async {
+      final db = await database;
+
+      // Query the table for all The Dogs.
+      final List<Map<String, dynamic>> maps = await db.query('goods_meal');
+
+      // Convert the List<Map<String, dynamic> into a List<Dog>.
+      return List.generate(maps.length, (i) {
+        return GoodsMealEntity(
+          key: maps[i]['key'] as Key,
+          qty: maps[i]['qty'] as int,
+          value: maps[i]['value'] as double,
+        );
+      });
+    }
+    
+    var goodsMealList = goodsMeals();
+    
+    goodsMealList.asStream().forEach((element) {_goodsMealWidgets.add(value)})
+    
+  }
+  
+  openDb() async {
+    openDatabase(
+      p.join(await getDatabasesPath(), 'goods_meal_database.db'),
+      onCreate: (db, version) {
+        // Run the CREATE TABLE statement on the database.
+        return db.execute(
+          'CREATE TABLE goods_meal(key VARCHAR PRIMARY KEY, qty INTEGER, value REAL)',
+        );
+      },
+      version: 1,
+    );
+  }
+  
 }
 
-typedef GoodsBagCallback = void Function(GoodsBag bag);
+typedef SaveDataCallback = void Function(Key? key, String qty, String value);

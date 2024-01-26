@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
 import 'package:quanto_sono_buono/main.dart';
-import 'package:quanto_sono_buono/models/goods_bag.dart';
 
 class GoodsMealWidget extends StatefulWidget {
-  final String uniqueKey;
-  final GoodsBagCallback callback;
-  const GoodsMealWidget({super.key, required this.uniqueKey, required this.callback});
+  final SaveDataCallback callback;
+  const GoodsMealWidget({super.key, required this.callback});
 
   @override
-  State<StatefulWidget> createState() => _GoodsMealWidgetState();
+  State<StatefulWidget> createState() => GoodsMealWidgetState();
 }
 
-class _GoodsMealWidgetState extends State<GoodsMealWidget> {
+class GoodsMealWidgetState extends State<GoodsMealWidget> {
+
   String _quantityDropdownButton = '0';
   String _value = '0';
-  final GoodsBag _bag = GoodsBag(value: 0, quantity: 0);
+
+  String get qty { return _quantityDropdownButton; }
+  String get val { return _value; }
+
   final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter =
       DecimalNumberRegexInputFormatter();
   final TextEditingController _controller = TextEditingController();
@@ -72,9 +74,8 @@ class _GoodsMealWidgetState extends State<GoodsMealWidget> {
                               items: _zeroToTwentyList,
                               onChanged: (s) => setState(() {
                                     _quantityDropdownButton = s!;
-                                    _bag.quantity = int.parse(s);
-                                    widget.callback(_bag);
-                                  })))
+                                    widget.callback(widget.key, _quantityDropdownButton, _value);
+                              })))
                     ],
                   )),
               Expanded(
@@ -124,8 +125,7 @@ class _GoodsMealWidgetState extends State<GoodsMealWidget> {
               onPressed: () {
                 setState(() {
                   _value = _controller.text;
-                  _bag.value = double.parse(_value);
-                  widget.callback(_bag);
+                  widget.callback(widget.key, _quantityDropdownButton, _value);
                 });
                 Navigator.of(context).pop();
               },

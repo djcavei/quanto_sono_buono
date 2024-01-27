@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
 import 'package:quanto_sono_buono/main.dart';
 
@@ -21,8 +22,8 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
 
   String _value = '0';
 
-  final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter =
-      DecimalNumberRegexInputFormatter();
+  final DecimalNumberRegexInputFormatter _goodsMealValueFormatter =
+      DecimalNumberRegexInputFormatter.ofGoodsMeal();
   final TextEditingController _controller = TextEditingController();
   final List<DropdownMenuItem<String>> _zeroToTwentyList =
       List<DropdownMenuItem<String>>.generate(
@@ -56,7 +57,7 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                     child: const Text("Reset"),
                   )),
               Expanded(
-                  flex: 2,
+                  flex: 1,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
@@ -77,12 +78,12 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                               items: _zeroToTwentyList,
                               onChanged: (s) => setState(() {
                                     _quantityDropdownButton = s!;
-                                    widget.saveCallback(_quantityDropdownButton, _value);
+                                    widget.saveCallback(_quantityDropdownButton, _value, null);
                               })))
                     ],
                   )),
               Expanded(
-                  flex: 1,
+                  flex: 2,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.start,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -111,7 +112,7 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
           title: const Text('Inserisci valore'),
           content: TextField(
             controller: _controller,
-            inputFormatters: [_decimalNumberRegexInputFormatter],
+            inputFormatters: [_goodsMealValueFormatter],
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             autofocus: true,
           ),
@@ -128,16 +129,17 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
               onPressed: () {
                 setState(() {
                   if(!widget.alreadyPresentCallback(_controller.text)) {
+                    widget.saveCallback(_quantityDropdownButton, _controller.text, _value);
                     _value = _controller.text;
-                    widget.saveCallback(_quantityDropdownButton, _value);
+                    Navigator.of(context).pop();
                   }
                   else {
+                    alreadyPresentToast(_controller.text);
                     _controller.text = _value;
                   }
                 });
-                Navigator.of(context).pop();
               },
-              child: const Text('Conferma'),
+              child: const Text('Conferma', style: TextStyle(color: Colors.white),),
             ),
           ],
         );
@@ -145,24 +147,15 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
     );
   }
 
-  void alreadyPresentDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          title: const Text('Valore buono già presente'),
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Esci'),
-            )
-          ],
-        );
-      },
-    );
+  void alreadyPresentToast(String text) {
+    Fluttertoast.showToast(
+        msg: "Buono da $text € già presente!",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.CENTER,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.blueAccent,
+        textColor: Colors.white,
+        fontSize: 16.0);
   }
 
   void value(String value) {_value = value;}

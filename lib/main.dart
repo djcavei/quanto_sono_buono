@@ -7,7 +7,7 @@ import 'package:quanto_sono_buono/persistence/db.dart';
 import 'package:quanto_sono_buono/persistence/goods_meal_entity.dart';
 import 'package:quanto_sono_buono/widgets/goods_meal_widget.dart';
 import 'package:sqflite/sqflite.dart';
-
+import 'package:fluttertoast/fluttertoast.dart';
 
 void main() {
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -42,15 +42,14 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-
   late final DatabaseOperations? dbOp = DatabaseOperations.instance;
   final maxNumGoodsMeal = 4;
   final List<GestureDetector> _goodsMealWidgets = [];
   final List<GlobalKey<GoodsMealWidgetState>> _keys = [];
   double _amount = 0;
   final TextEditingController _controller = TextEditingController();
-  final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter =
-      DecimalNumberRegexInputFormatter();
+  final DecimalNumberRegexInputFormatter _totalAmountMealValueFormatter =
+      DecimalNumberRegexInputFormatter.ofTotalAmount();
 
   @override
   void initState() {
@@ -130,7 +129,19 @@ class _MyHomePageState extends State<MyHomePage> {
       _goodsMealWidgets.add(GestureDetector(
           key: UniqueKey(),
           onLongPress: () => _removeGoodsMealDialog(globalKey),
-          child: GoodsMealWidget(alreadyPresentCallback: _checkIfAlreadyPresent, saveCallback: _saveData, key: globalKey)));
+          child: GoodsMealWidget(
+              alreadyPresentCallback: _checkIfAlreadyPresent,
+              saveCallback: _saveData,
+              key: globalKey)));
+    } else {
+      Fluttertoast.showToast(
+          msg: "Non sei così buono...",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.CENTER,
+          timeInSecForIosWeb: 1,
+          backgroundColor: Colors.blueAccent,
+          textColor: Colors.white,
+          fontSize: 16.0);
     }
   }
 
@@ -156,7 +167,10 @@ class _MyHomePageState extends State<MyHomePage> {
                   _goodsMealWidgets.removeWhere((element) =>
                       uniqueKey == ((element.child!) as GoodsMealWidget).key);
                   _keys.removeWhere((key) => uniqueKey == key);
-                  deleteGoodsMealFromDb((uniqueKey as GlobalKey<GoodsMealWidgetState>).currentState!.val);
+                  deleteGoodsMealFromDb(
+                      (uniqueKey as GlobalKey<GoodsMealWidgetState>)
+                          .currentState!
+                          .val);
                 });
                 Navigator.of(context).pop();
               },
@@ -187,7 +201,7 @@ class _MyHomePageState extends State<MyHomePage> {
           title: const Text('Inserisci importo'),
           content: TextField(
             controller: _controller,
-            inputFormatters: [_decimalNumberRegexInputFormatter],
+            inputFormatters: [_totalAmountMealValueFormatter],
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             autofocus: true,
           ),
@@ -279,12 +293,13 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   bool _checkIfAlreadyPresent(String value) {
-    return _keys.where((element) => element.currentState!.val == value).isNotEmpty;
+    return _keys
+        .where((element) => element.currentState!.val == value)
+        .isNotEmpty;
   }
 
-  void _saveData(String qty, String value) {
-
-    if(value != "0") {
+  void _saveData(String qty, String value, String? oldValue) {
+    if (value != "0") {
       Future<void> insertGoodsMeal(GoodsMealEntity goodsMealEntity) async {
         await dbOp!.openDb();
         await dbOp!.database!.insert(
@@ -294,32 +309,29 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       }
 
-      insertGoodsMeal(GoodsMealEntity(
-          qty: int.parse(qty), val: double.parse(value)));
+      if (oldValue != null) {
+        deleteGoodsMealFromDb(oldValue);
+      }
+      insertGoodsMeal(
+          GoodsMealEntity(qty: int.parse(qty), val: double.parse(value)));
     }
-
   }
 
   void deleteGoodsMealFromDb(String value) async {
     await dbOp!.openDb();
     Future<void> deleteGoodsMeal(String value) async {
-      await dbOp!.database!.delete(
-        'goods_meal',
-        where: 'value = ?',
-        whereArgs: [double.parse(value)]
-      );
+      await dbOp!.database!.delete('goods_meal',
+          where: 'value = ?', whereArgs: [double.parse(value)]);
     }
 
     deleteGoodsMeal(value);
-
   }
-  
-  void _retrieveGoodsMeals() async {
 
+  void _retrieveGoodsMeals() async {
     await dbOp!.openDb();
     Future<List<GoodsMealEntity>> goodsMeals() async {
-
-      final List<Map<String, dynamic>> maps = await dbOp!.database!.query('goods_meal');
+      final List<Map<String, dynamic>> maps =
+          await dbOp!.database!.query('goods_meal');
 
       return List.generate(maps.length, (i) {
         return GoodsMealEntity(
@@ -328,20 +340,23 @@ class _MyHomePageState extends State<MyHomePage> {
         );
       });
     }
+
     var goodsMealList = await goodsMeals();
     setState(() {
-      for(int i = 0; i < goodsMealList.length; ++i) {
+      for (int i = 0; i < goodsMealList.length; ++i) {
         _addNewGoodsMealWidget();
       }
     });
 
-    for(int i = 0; i < goodsMealList.length; ++i) {
+    for (int i = 0; i < goodsMealList.length; ++i) {
       _keys[i].currentState!.value("${goodsMealList[i].value}");
-      _keys[i].currentState!.quantityDropdownButton("${goodsMealList[i].value}");
+      _keys[i]
+          .currentState!
+          .quantityDropdownButton("${goodsMealList[i].value}");
     }
   }
-
 }
 
-typedef SaveDataCallback = void Function(String qty, String value);
+typedef SaveDataCallback = void Function(
+    String qty, String value, String? oldValue);
 typedef CheckDataCallback = bool Function(String value);

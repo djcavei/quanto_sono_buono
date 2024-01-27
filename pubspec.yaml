@@ -100,5 +100,19 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
+  fonts:
+    - family: TitilliumWeb
+      fonts:
+        - asset: google-fonts/TitilliumWeb-Black.ttf
+        - asset: google-fonts/TitilliumWeb-Bold.ttf
+        - asset: google-fonts/TitilliumWeb-BoldItalic.ttf
+        - asset: google-fonts/TitilliumWeb-ExtraLight.ttf
+        - asset: google-fonts/TitilliumWeb-ExtraLightItalic.ttf
+        - asset: google-fonts/TitilliumWeb-Italic.ttf
+        - asset: google-fonts/TitilliumWeb-Light.ttf
+        - asset: google-fonts/TitilliumWeb-LightItalic.ttf
+        - asset: google-fonts/TitilliumWeb-Regular.ttf
+        - asset: google-fonts/TitilliumWeb-SemiBold.ttf
+        - asset: google-fonts/TitilliumWeb-SemiBoldItalic.ttf
 assets:
   - google-fonts/

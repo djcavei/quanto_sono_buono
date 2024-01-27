@@ -16,8 +16,7 @@ class DatabaseOperations {
   }
 
   Future<void> openDb() async {
-    if(_database == null) {
-      await openDatabase(
+    _database ??= await openDatabase(
         p.join(await getDatabasesPath(), 'goods_meal_database.db'),
         onCreate: (db, version) {
           return db.execute(
@@ -26,7 +25,6 @@ class DatabaseOperations {
         },
         version: 1,
       );
-    }
   }
 
 }

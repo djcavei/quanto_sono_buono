@@ -221,7 +221,10 @@ class _MyHomePageState extends State<MyHomePage> {
                 });
                 Navigator.of(context).pop();
               },
-              child: const Text('Conferma'),
+              child: const Text(
+                'Conferma',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         );
@@ -348,12 +351,16 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     });
 
-    for (int i = 0; i < goodsMealList.length; ++i) {
-      _keys[i].currentState!.value("${goodsMealList[i].value}");
-      _keys[i]
-          .currentState!
-          .quantityDropdownButton("${goodsMealList[i].value}");
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        for (int i = 0; i < goodsMealList.length; ++i) {
+          _keys[i].currentState!.value("${goodsMealList[i].value}");
+          _keys[i]
+              .currentState!
+              .quantityDropdownButton("${goodsMealList[i].qty}");
+        }
+      });
+    });
   }
 }
 

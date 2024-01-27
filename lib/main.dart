@@ -11,6 +11,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 
 void main() {
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  GoogleFonts.config.allowRuntimeFetching = false;
   runApp(const MyApp());
 }
 

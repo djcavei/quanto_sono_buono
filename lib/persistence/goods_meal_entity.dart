@@ -1,15 +1,14 @@
-import 'package:flutter/cupertino.dart';
-
 class GoodsMealEntity {
-  final Key key;
-  final int qty;
-  final double value;
+  final int _qty;
+  int get qty => _qty;
 
-  const GoodsMealEntity({required this.qty,required this.key,required this.value});
+  final double _value;
+  double get value => _value;
+
+  const GoodsMealEntity({qty, val}) : _qty = qty, _value = val;
 
   Map<String, dynamic> toMap() {
     return {
-      'key': key,
       'qty': qty,
       'value': value
     };

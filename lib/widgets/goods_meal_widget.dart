@@ -3,8 +3,9 @@ import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatte
 import 'package:quanto_sono_buono/main.dart';
 
 class GoodsMealWidget extends StatefulWidget {
-  final SaveDataCallback callback;
-  const GoodsMealWidget({super.key, required this.callback});
+  final SaveDataCallback saveCallback;
+  final CheckDataCallback alreadyPresentCallback;
+  const GoodsMealWidget({super.key, required this.saveCallback, required this.alreadyPresentCallback});
 
   @override
   State<StatefulWidget> createState() => GoodsMealWidgetState();
@@ -13,10 +14,12 @@ class GoodsMealWidget extends StatefulWidget {
 class GoodsMealWidgetState extends State<GoodsMealWidget> {
 
   String _quantityDropdownButton = '0';
-  String _value = '0';
 
-  String get qty { return _quantityDropdownButton; }
-  String get val { return _value; }
+  String get val => _value;
+
+  String get qty => _quantityDropdownButton;
+
+  String _value = '0';
 
   final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter =
       DecimalNumberRegexInputFormatter();
@@ -43,7 +46,7 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                   ),
                 ],
                 color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(50)),
+                borderRadius: BorderRadius.circular(20)),
             height: 90,
             child: Row(mainAxisAlignment: MainAxisAlignment.start, children: [
               Expanded(
@@ -74,7 +77,7 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                               items: _zeroToTwentyList,
                               onChanged: (s) => setState(() {
                                     _quantityDropdownButton = s!;
-                                    widget.callback(widget.key, _quantityDropdownButton, _value);
+                                    widget.saveCallback(_quantityDropdownButton, _value);
                               })))
                     ],
                   )),
@@ -124,8 +127,13 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
                   backgroundColor: MaterialStateProperty.all(Colors.green)),
               onPressed: () {
                 setState(() {
-                  _value = _controller.text;
-                  widget.callback(widget.key, _quantityDropdownButton, _value);
+                  if(!widget.alreadyPresentCallback(_controller.text)) {
+                    _value = _controller.text;
+                    widget.saveCallback(_quantityDropdownButton, _value);
+                  }
+                  else {
+                    _controller.text = _value;
+                  }
                 });
                 Navigator.of(context).pop();
               },
@@ -136,5 +144,29 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
       },
     );
   }
+
+  void alreadyPresentDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: const Text('Valore buono già presente'),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Esci'),
+            )
+          ],
+        );
+      },
+    );
+  }
+
+  void value(String value) {_value = value;}
+
+  void quantityDropdownButton(String qty) {_quantityDropdownButton = qty;}
 
 }

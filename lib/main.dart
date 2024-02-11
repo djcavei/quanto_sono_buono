@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_swiper_view/flutter_swiper_view.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
 import 'package:quanto_sono_buono/models/goods_bag.dart';
@@ -45,7 +46,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   late final DatabaseOperations? dbOp = DatabaseOperations.instance;
   final maxNumGoodsMeal = 4;
-  final List<GestureDetector> _goodsMealWidgets = [];
+  final List<Swiper> _goodsMealWidgets = [];
   final List<GlobalKey<GoodsMealWidgetState>> _keys = [];
   double _amount = 0;
   final TextEditingController _controller = TextEditingController();
@@ -128,16 +129,16 @@ class _MyHomePageState extends State<MyHomePage> {
     if (_goodsMealWidgets.length < maxNumGoodsMeal) {
       GlobalKey<GoodsMealWidgetState> globalKey = GlobalKey();
       _keys.add(globalKey);
-      _goodsMealWidgets.add(GestureDetector(
-          key: UniqueKey(),
-          onLongPress: () => _removeGoodsMealDialog(globalKey),
-          onPanUpdate: (details) => details.delta.dx > 8.0
-              ? _removeGoodsMealDialog(globalKey)
-              : {}, // todo swipe con animazione
-          child: GoodsMealWidget(
+      _goodsMealWidgets.add(Swiper(
+          key: globalKey,
+          itemCount: 1,
+          scrollDirection: Axis.horizontal,
+          duration: 500,
+          onIndexChanged: (idx) => _removeGoodsMealDialog(globalKey),
+          itemBuilder: (ctx, widget) {return GoodsMealWidget(
               alreadyPresentCallback: _checkIfAlreadyPresent,
               saveCallback: _saveData,
-              key: globalKey)));
+              key: globalKey);}));
     } else {
       Fluttertoast.showToast(
           msg: "Non sei così buono...",
@@ -170,7 +171,7 @@ class _MyHomePageState extends State<MyHomePage> {
               onPressed: () {
                 setState(() {
                   _goodsMealWidgets.removeWhere((element) =>
-                      uniqueKey == ((element.child!) as GoodsMealWidget).key);
+                      uniqueKey == element.key);
                   _keys.removeWhere((key) => uniqueKey == key);
                   deleteGoodsMealFromDb(
                       (uniqueKey as GlobalKey<GoodsMealWidgetState>)

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:quanto_sono_buono/formatters/decimal_number_regex_input_formatter.dart';
 import 'package:quanto_sono_buono/models/goods_bag.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'best_combo.dart';
+import 'package:quanto_sono_buono/persistence/db.dart';
+import 'package:quanto_sono_buono/persistence/goods_meal_entity.dart';
+import 'package:quanto_sono_buono/widgets/goods_meal_widget.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 void main() {
+  GoogleFonts.config.allowRuntimeFetching = false;
   runApp(const MyApp());
 }
 
@@ -16,10 +20,12 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     return MaterialApp(
       title: 'Quanto sono buono',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.amber),
+        textTheme: GoogleFonts.titilliumWebTextTheme(),
         useMaterial3: true,
       ),
       home: const MyHomePage(title: 'Quanto sono buono Home Page'),
@@ -37,166 +43,216 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  GoodsBag seven = GoodsBag(value: 7, quantity: 0);
-  GoodsBag fourFive = GoodsBag(value: 4.5, quantity: 0);
-  double amount = 0;
+  late final DatabaseOperations? dbOp = DatabaseOperations.instance;
+  final maxNumGoodsMeal = 4;
+  final List<GestureDetector> _goodsMealWidgets = [];
+  final List<GlobalKey<GoodsMealWidgetState>> _keys = [];
+  double _amount = 0;
   final TextEditingController _controller = TextEditingController();
-  final DecimalNumberRegexInputFormatter _decimalNumberRegexInputFormatter = DecimalNumberRegexInputFormatter();
+  final DecimalNumberRegexInputFormatter _totalAmountMealValueFormatter =
+      DecimalNumberRegexInputFormatter.ofTotalAmount();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  void _increment7Goods() {
-    setState(() {
-      if (seven.quantity < 20) {
-        ++seven.quantity;
-      }
-    });
-    _saveData();
-  }
-
-  void _decrement7Goods() {
-    setState(() {
-      if (seven.quantity > 0) {
-        --seven.quantity;
-      }
-    });
-    _saveData();
-  }
-
-  void _increment4_5Goods() {
-    setState(() {
-      if (fourFive.quantity < 20) {
-        ++fourFive.quantity;
-      }
-    });
-    _saveData();
-  }
-
-  void _decrement4_5Goods() {
-    setState(() {
-      if (fourFive.quantity > 0) {
-        --fourFive.quantity;
-      }
-    });
-    _saveData();
+    _retrieveGoodsMeals();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        floatingActionButton: FloatingActionButton(
-          onPressed: _calculate,
-          tooltip: "Calcola",
-          child: const Icon(Icons.calculate),
-        ),
+        persistentFooterButtons: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Padding(
+                  padding: const EdgeInsets.only(right: 30),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Text("Importo spesa",
+                          style: TextStyle(fontSize: 18)),
+                      ElevatedButton(
+                          onPressed: () => _insertAmountDialog(context),
+                          child: Text(
+                            "$_amount €",
+                            style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black),
+                          ))
+                    ],
+                  )),
+              ElevatedButton(
+                  style: ButtonStyle(
+                      backgroundColor: MaterialStateProperty.all(
+                          Theme.of(context).colorScheme.secondary),
+                      fixedSize:
+                          MaterialStateProperty.all(const Size(100, 50))),
+                  onPressed: _calculate,
+                  child: const Text(
+                    "Calcola!",
+                    style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold),
+                  ))
+            ],
+          )
+        ],
         appBar: AppBar(
+          leading: IconButton(
+            highlightColor: _goodsMealWidgets.length < maxNumGoodsMeal
+                ? null
+                : Colors.transparent,
+            style: _setAddButtonStyle(),
+            tooltip: "Aggiungi nuovo buono",
+            icon: const Icon(Icons.add),
+            onPressed: () => setState(() {
+              _addNewGoodsMealWidget();
+            }),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+          elevation: 5,
+          shadowColor: Theme.of(context).colorScheme.onPrimary,
+          backgroundColor: Colors.orange,
           centerTitle: true,
-          title: const Text("Quanto buono sono"),
+          title: const Text("Quanto sono buono"),
         ),
-        body: Column(children: [
-          Row(
-            children: <Widget>[
-              const Expanded(
-                  flex: 1,
-                  child: Column(
-                    children: [
-                      Text("Quantità buoni da 7€",
-                          style: TextStyle(color: Colors.black))
-                    ],
-                  )),
-              Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          TextButton(
-                              onPressed: _decrement7Goods,
-                              child:
-                                  const Icon(Icons.remove, color: Colors.grey)),
-                          Text('${seven.quantity}'),
-                          TextButton(
-                              onPressed: _increment7Goods,
-                              child: const Icon(Icons.add,
-                                  color: Colors.blueAccent)),
-                        ],
-                      )
-                    ],
-                  ))
-            ],
+        body: Column(children: _goodsMealWidgets));
+  }
+
+  void _addNewGoodsMealWidget() {
+    if (_goodsMealWidgets.length < maxNumGoodsMeal) {
+      GlobalKey<GoodsMealWidgetState> globalKey = GlobalKey();
+      _keys.add(globalKey);
+      _goodsMealWidgets.add(GestureDetector(
+          key: UniqueKey(),
+          onLongPress: () => _removeGoodsMealDialog(globalKey),
+          onPanUpdate: (details) => details.delta.dx > 8.0
+              ? _removeGoodsMealDialog(globalKey)
+              : {}, // todo swipe con animazione
+          child: GoodsMealWidget(
+              alreadyPresentCallback: _checkIfAlreadyPresent,
+              saveCallback: _saveData,
+              key: globalKey)));
+    } else {
+      Fluttertoast.showToast(
+          msg: "Non sei così buono...",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.CENTER,
+          timeInSecForIosWeb: 1,
+          backgroundColor: Colors.blueAccent,
+          textColor: Colors.white,
+          fontSize: 16.0);
+    }
+  }
+
+  void _removeGoodsMealDialog(Key uniqueKey) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: const Text('Elimina buono?'),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Torna Indietro'),
+            ),
+            ElevatedButton(
+              style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(Colors.red)),
+              onPressed: () {
+                setState(() {
+                  _goodsMealWidgets.removeWhere((element) =>
+                      uniqueKey == ((element.child!) as GoodsMealWidget).key);
+                  _keys.removeWhere((key) => uniqueKey == key);
+                  deleteGoodsMealFromDb(
+                      (uniqueKey as GlobalKey<GoodsMealWidgetState>)
+                          .currentState!
+                          .val);
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text('Elimina'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  ButtonStyle? _setAddButtonStyle() {
+    MaterialStateProperty<Color?>? enabledOrDisabled(bool enabled) {
+      return enabled ? null : MaterialStateProperty.all(Colors.black38);
+    }
+
+    return ButtonStyle(
+        iconSize: MaterialStateProperty.all(35),
+        iconColor: enabledOrDisabled(_goodsMealWidgets.length < maxNumGoodsMeal));
+  }
+
+  void _insertAmountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: const Text('Inserisci importo'),
+          content: TextField(
+            controller: _controller,
+            inputFormatters: [_totalAmountMealValueFormatter],
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
           ),
-          Row(
-            children: <Widget>[
-              const Expanded(
-                  flex: 1,
-                  child: Column(
-                    children: [
-                      Text("Quantità buoni da 4,5€",
-                          style: TextStyle(color: Colors.black))
-                    ],
-                  )),
-              Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          TextButton(
-                              onPressed: _decrement4_5Goods,
-                              child:
-                                  const Icon(Icons.remove, color: Colors.grey)),
-                          Text('${fourFive.quantity}'),
-                          TextButton(
-                              onPressed: _increment4_5Goods,
-                              child: const Icon(Icons.add,
-                                  color: Colors.blueAccent)),
-                        ],
-                      )
-                    ],
-                  ))
-            ],
-          ),
-          Row(
-            children: <Widget>[
-              Expanded(
-                  flex: 3,
-                  child: Column(children: [
-                    TextField(
-                      inputFormatters: [_decimalNumberRegexInputFormatter],
-                      controller: _controller,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Tocca per importo spesa',
-                      ),
-                    )
-                  ]))
-            ],
-          ),
-        ]));
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Annulla'),
+            ),
+            ElevatedButton(
+              style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all(Colors.green)),
+              onPressed: () {
+                setState(() {
+                  _amount = double.parse(_controller.text);
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Conferma',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _calculate() {
-    double amount;
-    try {
-      amount = double.parse(_controller.text);
-    } on Exception catch (_) {
-      return;
-    }
-    double bestDiff = amount;
+    double bestDiff = _amount;
     List<GoodsBag> bestCombo = [];
-    List<GoodsBag> myGoodsBag = [seven, fourFive];
+    List<GoodsBag> myGoodsBag = _keys
+        .map((e) => GoodsBag(
+            value: double.parse(e.currentState!.val),
+            quantity: int.parse(e.currentState!.qty)))
+        .toList();
 
     void calculateRec(int idx, double expense, List<GoodsBag> currentBag) {
-      if(expense <= amount && amount - expense < bestDiff) {
-        bestDiff = amount - expense;
+      if (expense <= _amount && _amount - expense < bestDiff) {
+        bestDiff = _amount - expense;
         bestCombo = currentBag.map((e) => e.clone()).toList();
       }
-      if(idx < myGoodsBag.length && expense <= amount) {
-        if(myGoodsBag[idx].quantity > currentBag[idx].quantity) {
+      if (idx < myGoodsBag.length && expense <= _amount) {
+        if (myGoodsBag[idx].quantity > currentBag[idx].quantity) {
           ++currentBag[idx].quantity;
           calculateRec(idx, expense + myGoodsBag[idx].value, currentBag);
           --currentBag[idx].quantity;
@@ -205,23 +261,142 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     }
 
-    calculateRec(0, 0, myGoodsBag.map((e) => GoodsBag(value: e.value, quantity: 0)).toList());
-    Navigator.push(context, MaterialPageRoute(builder: (context) => BestCombo(bestCombo: bestCombo, remainingAmount: bestDiff))).then((value) => setState((){}));
+    calculateRec(0, 0,
+        myGoodsBag.map((e) => GoodsBag(value: e.value, quantity: 0)).toList());
 
+    _showBestComboDialog(context, bestCombo, bestDiff);
   }
 
-  void _loadData() async {
-    var sp = await SharedPreferences.getInstance();
+  void _showBestComboDialog(
+      BuildContext context, List<GoodsBag> bestCombo, double remainingAmount) {
+    List<Padding> bestComboToText() {
+      var rowList = bestCombo
+          .where((element) => element.quantity > 0)
+          .map((e) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+              child: Row(children: [
+                Text('${e.quantity} buoni da ${e.value}€',
+                    style: const TextStyle(fontWeight: FontWeight.bold))
+              ])))
+          .toList();
+      rowList.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+          child: Row(children: [
+            Text('Restano da pagare ${remainingAmount.toStringAsFixed(2)} €',
+                style: const TextStyle(fontWeight: FontWeight.bold))
+          ])));
+      rowList.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 30),
+          child: Row(children: [
+            ElevatedButton(
+                style: ButtonStyle(
+                    foregroundColor: MaterialStateProperty.all(
+                        Theme.of(context).colorScheme.onPrimary),
+                    backgroundColor: MaterialStateProperty.all(
+                        Theme.of(context).colorScheme.primary)),
+                onPressed: ()  {_subtractGoodsMeal(bestCombo); Navigator.of(context).pop();},
+                child: const Text("Spendi buoni")),
+            const SizedBox(width: 15),
+            ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Indietro"))
+          ])));
+      return rowList;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return SimpleDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: const Text('Miglior combinazione'),
+          children: bestComboToText(),
+        );
+      },
+    );
+  }
+
+  bool _checkIfAlreadyPresent(String value) {
+    return _keys
+        .where((element) => element.currentState!.val == value)
+        .isNotEmpty;
+  }
+
+  void _saveData(String qty, String value, String? oldValue) {
+    if (value != "0") {
+      Future<void> insertGoodsMeal(GoodsMealEntity goodsMealEntity) async {
+        await dbOp!.openDb();
+        await dbOp!.database!.insert(
+          'goods_meal',
+          goodsMealEntity.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      if (oldValue != null) {
+        deleteGoodsMealFromDb(oldValue);
+      }
+      insertGoodsMeal(
+          GoodsMealEntity(qty: int.parse(qty), val: double.parse(value)));
+    }
+  }
+
+  void deleteGoodsMealFromDb(String value) async {
+    await dbOp!.openDb();
+    Future<void> deleteGoodsMeal(String value) async {
+      await dbOp!.database!.delete('goods_meal',
+          where: 'value = ?', whereArgs: [double.parse(value)]);
+    }
+
+    deleteGoodsMeal(value);
+  }
+
+  void _retrieveGoodsMeals() async {
+    await dbOp!.openDb();
+    Future<List<GoodsMealEntity>> goodsMeals() async {
+      final List<Map<String, dynamic>> maps =
+          await dbOp!.database!.query('goods_meal');
+
+      return List.generate(maps.length, (i) {
+        return GoodsMealEntity(
+          qty: maps[i]['qty'] as int,
+          val: maps[i]['value'] as double,
+        );
+      });
+    }
+
+    var goodsMealList = await goodsMeals();
     setState(() {
-      seven.quantity = sp.getInt('qty_seven') ?? 0;
-      fourFive.quantity = sp.getInt('qty_fourFive') ?? 0;
+      for (int i = 0; i < goodsMealList.length; ++i) {
+        _addNewGoodsMealWidget();
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        for (int i = 0; i < goodsMealList.length; ++i) {
+          _keys[i].currentState!.value("${goodsMealList[i].value}");
+          _keys[i]
+              .currentState!
+              .quantityDropdownButton("${goodsMealList[i].qty}");
+        }
+      });
     });
   }
 
-  void _saveData() async {
-    var sp = await SharedPreferences.getInstance();
-    sp.setInt('qty_seven', seven.quantity);
-    sp.setInt('qty_fourFive', fourFive.quantity);
-    _loadData();
+  void _subtractGoodsMeal(List<GoodsBag> bestCombo) {
+    for(var gb in bestCombo) {
+      for(var key in _keys) {
+        final valString = key.currentState!.val;
+        if((double.parse(key.currentState!.val) - gb.value).abs() < 0.001) {
+          var qtyString = key.currentState!.qty;
+          var newQtyInt = int.parse(qtyString) - gb.quantity;
+          key.currentState!.quantityDropdownButton("$newQtyInt");
+          _saveData("$newQtyInt", valString, null);
+        }
+      }
+    }
   }
 }
+
+typedef SaveDataCallback = void Function(
+    String qty, String value, String? oldValue);
+typedef CheckDataCallback = bool Function(String value);

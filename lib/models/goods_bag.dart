@@ -1,6 +1,6 @@
 class GoodsBag {
 
-  final double value;
+  double value;
   int quantity;
 
   GoodsBag({required this.value, required this.quantity});

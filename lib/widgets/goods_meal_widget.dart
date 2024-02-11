@@ -17,6 +17,10 @@ class GoodsMealWidget extends StatefulWidget {
 }
 
 class GoodsMealWidgetState extends State<GoodsMealWidget> {
+  Color get onSecondary => Theme.of(context).colorScheme.onSecondary;
+
+  Color get secondary => Theme.of(context).colorScheme.secondary;
+
   String _quantityDropdownButton = '0';
 
   String get val => _value;
@@ -55,14 +59,9 @@ class GoodsMealWidgetState extends State<GoodsMealWidget> {
         child: Row(mainAxisAlignment: MainAxisAlignment.start, children: [
           Expanded(
               flex: 1,
-              child: ElevatedButton(
-                onPressed: () {},
-                child: const Text("Reset"),
-              )),
-          Expanded(
-              flex: 1,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   const Text("Quantità", style: TextStyle(fontSize: 18)),
                   Container(

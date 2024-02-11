@@ -10,7 +10,6 @@ import 'package:sqflite/sqflite.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 void main() {
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   GoogleFonts.config.allowRuntimeFetching = false;
   runApp(const MyApp());
 }
@@ -21,6 +20,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     return MaterialApp(
       title: 'Quanto sono buono',
       theme: ThemeData(
@@ -104,8 +104,9 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
         appBar: AppBar(
           leading: IconButton(
-            highlightColor:
-                _goodsMealWidgets.length < 5 ? null : Colors.transparent,
+            highlightColor: _goodsMealWidgets.length < maxNumGoodsMeal
+                ? null
+                : Colors.transparent,
             style: _setAddButtonStyle(),
             tooltip: "Aggiungi nuovo buono",
             icon: const Icon(Icons.add),
@@ -130,6 +131,9 @@ class _MyHomePageState extends State<MyHomePage> {
       _goodsMealWidgets.add(GestureDetector(
           key: UniqueKey(),
           onLongPress: () => _removeGoodsMealDialog(globalKey),
+          onPanUpdate: (details) => details.delta.dx > 8.0
+              ? _removeGoodsMealDialog(globalKey)
+              : {}, // todo swipe con animazione
           child: GoodsMealWidget(
               alreadyPresentCallback: _checkIfAlreadyPresent,
               saveCallback: _saveData,
@@ -190,7 +194,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     return ButtonStyle(
         iconSize: MaterialStateProperty.all(35),
-        iconColor: enabledOrDisabled(_goodsMealWidgets.length < 5));
+        iconColor: enabledOrDisabled(_goodsMealWidgets.length < maxNumGoodsMeal));
   }
 
   void _insertAmountDialog(BuildContext context) {
@@ -278,8 +282,22 @@ class _MyHomePageState extends State<MyHomePage> {
       rowList.add(Padding(
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
           child: Row(children: [
-            Text('Restano da pagare $remainingAmount €',
+            Text('Restano da pagare ${remainingAmount.toStringAsFixed(2)} €',
                 style: const TextStyle(fontWeight: FontWeight.bold))
+          ])));
+      rowList.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 30),
+          child: Row(children: [
+            ElevatedButton(
+                style: ButtonStyle(
+                    foregroundColor: MaterialStateProperty.all(
+                        Theme.of(context).colorScheme.onPrimary),
+                    backgroundColor: MaterialStateProperty.all(
+                        Theme.of(context).colorScheme.primary)),
+                onPressed: ()  {_subtractGoodsMeal(bestCombo); Navigator.of(context).pop();},
+                child: const Text("Spendi buoni")),
+            const SizedBox(width: 15),
+            ElevatedButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Indietro"))
           ])));
       return rowList;
     }
@@ -362,6 +380,20 @@ class _MyHomePageState extends State<MyHomePage> {
         }
       });
     });
+  }
+
+  void _subtractGoodsMeal(List<GoodsBag> bestCombo) {
+    for(var gb in bestCombo) {
+      for(var key in _keys) {
+        final valString = key.currentState!.val;
+        if((double.parse(key.currentState!.val) - gb.value).abs() < 0.001) {
+          var qtyString = key.currentState!.qty;
+          var newQtyInt = int.parse(qtyString) - gb.quantity;
+          key.currentState!.quantityDropdownButton("$newQtyInt");
+          _saveData("$newQtyInt", valString, null);
+        }
+      }
+    }
   }
 }
 
